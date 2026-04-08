@@ -1,2 +1,3 @@
-# sh4rkkk.github.io
-Testing some stuff gym scheme
+# Gym Log
+
+[Open Gym Log](https://sh4rkkk.github.io/gym_phone.html)
