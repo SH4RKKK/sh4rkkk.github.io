@@ -256,48 +256,69 @@
 <body>
 <div class="wrap">
   <div class="top-bar">
-    <span class="week-label" id="week-label">Week —</span>
-    <span class="date-label"  id="date-label"></span>
-    <button class="top-btn export"      onclick="exportData()">⬆ Export</button>
-    <button class="top-btn import-btn"  onclick="document.getElementById('import-input').click()">⬇ Import</button>
+    <div style="display:flex;align-items:center;gap:6px">
+      <button class="top-btn" id="prev-week" onclick="changeWeek(-1)">←</button>
+      <span class="week-label" id="week-label">Week —</span>
+      <button class="top-btn" id="next-week" onclick="changeWeek(1)">→</button>
+    </div>
+    <span class="date-label" id="date-label"></span>
+    <button class="top-btn export"     onclick="exportData()">⬆ Export</button>
+    <button class="top-btn import-btn" onclick="document.getElementById('import-input').click()">⬇ Import</button>
     <input  type="file" id="import-input" accept=".json" onchange="importData(event)">
     <span   class="status-msg" id="status-msg"></span>
   </div>
-  <div class="days-grid" id="days-grid"></div>
 </div>
 
 <script>
 /* ────────────────────────────────────────────────
    Date helpers
 ──────────────────────────────────────────────── */
-
-/* ISO week number — Mon=week start, matches most training logs */
 function isoWeek(date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const day = d.getUTCDay() || 7;          // make Sun = 7
-  d.setUTCDate(d.getUTCDate() + 4 - day); // nearest Thu
+  const d   = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-/* JS getDay(): 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat */
-const TODAY      = new Date();
-const WEEK_NUM   = isoWeek(TODAY);
-const TODAY_JS   = TODAY.getDay(); // 0–6
+/* Get the Monday of a given ISO week number in the current year */
+function mondayOfIsoWeek(week, year) {
+  const simple = new Date(year, 0, 1 + (week - 1) * 7);
+  const dow    = simple.getDay();
+  const monday = new Date(simple);
+  if (dow <= 4) monday.setDate(simple.getDate() - simple.getDay() + 1);
+  else          monday.setDate(simple.getDate() + 8 - simple.getDay());
+  return monday;
+}
 
-/* Map JS day index → DAYS array index (only training days listed) */
-const DAY_JS_TO_IDX = { 3: 0, 4: 1, 6: 2, 0: 3 }; // Wed Thu Sat Sun
-const TODAY_DAY_IDX = DAY_JS_TO_IDX[TODAY_JS]; // undefined if rest day
+const TODAY        = new Date();
+const CURRENT_WEEK = isoWeek(TODAY);
+const TODAY_JS     = TODAY.getDay();
 
-/* Set labels */
-document.getElementById('week-label').textContent = 'Week ' + WEEK_NUM;
-document.getElementById('date-label').textContent  =
-  TODAY.toLocaleDateString(undefined, { weekday:'long', day:'numeric', month:'short' });
+const DAY_JS_TO_IDX = { 3: 0, 4: 1, 6: 2, 0: 3 };
+const TODAY_DAY_IDX = DAY_JS_TO_IDX[TODAY_JS];
 
-window.__WEEK_NUM__ = WEEK_NUM;
+/* Currently viewed week — starts at current week */
+let viewWeek = CURRENT_WEEK;
+
+function updateWeekLabel() {
+  const isCurrentWeek = viewWeek === CURRENT_WEEK;
+  document.getElementById('week-label').textContent = 'Week ' + viewWeek;
+
+  /* Show the Monday–Sunday date range of the viewed week */
+  const mon = mondayOfIsoWeek(viewWeek, TODAY.getFullYear());
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const fmt = d => d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  document.getElementById('date-label').textContent =
+    fmt(mon) + ' – ' + fmt(sun) + (isCurrentWeek ? '  (this week)' : '');
+
+  /* Disable → button if already on current week */
+  document.getElementById('next-week').disabled = isCurrentWeek;
+  document.getElementById('next-week').style.opacity = isCurrentWeek ? '0.3' : '1';
+}
 
 /* ────────────────────────────────────────────────
-   Programme definition
+   Programme
 ──────────────────────────────────────────────── */
 const DAYS = [
   {
@@ -369,9 +390,9 @@ const DAYS = [
 ];
 
 /* ────────────────────────────────────────────────
-   Storage
+   Storage — keyed per week number
 ──────────────────────────────────────────────── */
-function storageKey() { return 'gymlog-week-' + WEEK_NUM; }
+function storageKey(week) { return 'gymlog-week-' + (week || viewWeek); }
 
 let data = {};
 let autoSaveTimer = null;
@@ -380,15 +401,27 @@ function persist() {
   try { localStorage.setItem(storageKey(), JSON.stringify(data)); } catch(e) {}
 }
 
-function loadFromStorage() {
+function loadFromStorage(week) {
   try {
-    const raw = localStorage.getItem(storageKey());
+    const raw = localStorage.getItem(storageKey(week));
     return raw ? JSON.parse(raw) : {};
   } catch(e) { return {}; }
 }
 
 /* ────────────────────────────────────────────────
-   Export — iOS share sheet, no extra text file
+   Week navigation
+──────────────────────────────────────────────── */
+function changeWeek(delta) {
+  const next = viewWeek + delta;
+  if (next < 1 || next > CURRENT_WEEK) return;
+  viewWeek = next;
+  data     = loadFromStorage(viewWeek);
+  updateWeekLabel();
+  renderGrid();
+}
+
+/* ────────────────────────────────────────────────
+   Export
 ──────────────────────────────────────────────── */
 async function exportData() {
   document.querySelectorAll('.set-input').forEach(inp => {
@@ -396,23 +429,21 @@ async function exportData() {
   });
   persist();
 
-  const filename = `gymlog-week${WEEK_NUM}.json`;
-  const json     = JSON.stringify({ week: WEEK_NUM, saved: new Date().toISOString(), data }, null, 2);
+  const filename = `gymlog-week${viewWeek}.json`;
+  const json     = JSON.stringify({ week: viewWeek, saved: new Date().toISOString(), data }, null, 2);
   const blob     = new Blob([json], { type: 'application/json' });
   const file     = new File([blob], filename, { type: 'application/json' });
 
-  /* Pass ONLY files — no title/text — prevents iOS creating a text snippet */
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });
       showStatus('✓ Exported', 'ok');
       return;
     } catch(e) {
-      if (e.name === 'AbortError') return; /* user cancelled, do nothing */
+      if (e.name === 'AbortError') return;
     }
   }
 
-  /* Desktop fallback */
   const url = URL.createObjectURL(blob);
   const a   = Object.assign(document.createElement('a'), { href: url, download: filename });
   a.click();
@@ -493,9 +524,12 @@ function makeSetBlock(di, si, ei, setIdx) {
    Render
 ──────────────────────────────────────────────── */
 function renderGrid() {
+  const isCurrentWeek = viewWeek === CURRENT_WEEK;
   const grid = document.getElementById('days-grid');
+
   grid.innerHTML = DAYS.map((day, di) => {
-    const isToday   = di === TODAY_DAY_IDX;
+    /* Only highlight today if viewing current week */
+    const isToday    = isCurrentWeek && di === TODAY_DAY_IDX;
     const todayClass = isToday ? ' today' : '';
 
     const sectionsHtml = day.sections.map((sec, si) => {
@@ -521,7 +555,6 @@ function renderGrid() {
           </div>
         </div>`;
       }).join('');
-
       return `<div class="section">
         <div class="section-label">${sec.label}</div>${exHtml}
       </div>`;
@@ -581,7 +614,8 @@ function removeSet(btn) {
 /* ────────────────────────────────────────────────
    Boot
 ──────────────────────────────────────────────── */
-data = loadFromStorage();
+data = loadFromStorage(viewWeek);
+updateWeekLabel();
 renderGrid();
 </script>
 </body>
