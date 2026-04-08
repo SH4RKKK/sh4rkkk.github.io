@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gym Log</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -59,6 +60,12 @@
     margin-right: 4px;
   }
 
+  .date-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-right: 8px;
+  }
+
   .top-btn {
     font-size: 12px;
     padding: 6px 12px;
@@ -70,19 +77,14 @@
     transition: background 0.15s;
     white-space: nowrap;
   }
-  .top-btn:hover { background: var(--bg-hover); }
+  .top-btn:hover  { background: var(--bg-hover); }
   .top-btn.export { border-color: #4ecca3; color: #4ecca3; }
   .top-btn.import-btn { border-color: #9d8fef; color: #9d8fef; }
 
-  .status-msg {
-    font-size: 12px;
-    color: var(--text-secondary);
-    display: none;
-  }
+  .status-msg { font-size: 12px; color: var(--text-secondary); display: none; }
   .status-msg.ok  { color: #4ecca3; }
   .status-msg.err { color: #e05c5c; }
 
-  /* hidden file input for import */
   #import-input { display: none; }
 
   /* ── Grid ── */
@@ -100,6 +102,13 @@
     border: 1px solid var(--border-light);
     border-radius: var(--radius);
     overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+
+  /* Today highlight — glowing border */
+  .day-col.today {
+    border-color: #ffffff22;
+    box-shadow: 0 0 0 2px #ffffff18, 0 4px 24px #0008;
   }
 
   .day-header {
@@ -107,8 +116,26 @@
     font-weight: 600;
     font-size: 13px;
     border-bottom: 1px solid var(--border-light);
+    position: relative;
   }
   .day-header .sub { font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.75; }
+
+  /* Today badge inside header */
+  .today-pip {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 20px;
+    background: #ffffff22;
+    color: inherit;
+    text-transform: uppercase;
+  }
+  .today .today-pip { display: inline-block; }
 
   .wed .day-header { background: var(--accent-wed-bg); color: var(--accent-wed-tx); }
   .thu .day-header { background: var(--accent-thu-bg); color: var(--accent-thu-tx); }
@@ -150,9 +177,6 @@
     gap: 4px;
     align-items: center;
   }
-  .col-header .lbl-kg   { width: 42px; text-align: center; }
-  .col-header .lbl-reps { width: 42px; text-align: center; }
-  .col-header .lbl-rpe  { width: 36px; text-align: center; }
 
   /* ── Sets ── */
   .sets-row { display: flex; flex-direction: column; gap: 4px; }
@@ -167,22 +191,20 @@
 
   /* ── Inputs ── */
   .set-input {
-    font-size: 12px;
+    font-size: 16px; /* prevents iOS zoom */
     padding: 3px 4px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-input);
     color: var(--text-primary);
     text-align: center;
-    height: 26px;
+    height: 28px;
     transition: border-color 0.15s;
-    /* prevent iOS zoom on focus (font-size must be ≥16px or use this trick) */
-    font-size: 16px;
   }
   .set-input:focus { outline: none; border-color: #555; background: #2d2d2d; }
-  .inp-kg   { width: 48px; }
-  .inp-reps { width: 48px; }
-  .inp-rpe  { width: 40px; }
+  .inp-kg   { width: 52px; }
+  .inp-reps { width: 52px; }
+  .inp-rpe  { width: 44px; }
 
   .set-sep { font-size: 10px; color: var(--text-tertiary); }
 
@@ -192,15 +214,14 @@
     background: none;
     border: none;
     cursor: pointer;
-    padding: 0 2px;
-    transition: color 0.15s;
-    flex-shrink: 0;
-    /* bigger tap target on mobile */
-    min-width: 28px;
-    min-height: 28px;
+    padding: 0;
+    min-width: 30px;
+    min-height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: color 0.15s;
+    flex-shrink: 0;
   }
   .del-set-btn:hover { color: #e05c5c; }
 
@@ -213,9 +234,9 @@
     padding: 5px 10px;
     cursor: pointer;
     align-self: flex-start;
-    transition: background 0.15s, color 0.15s;
     margin-top: 2px;
     min-height: 32px;
+    transition: background 0.15s, color 0.15s;
   }
   .add-set-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
@@ -236,8 +257,9 @@
 <div class="wrap">
   <div class="top-bar">
     <span class="week-label" id="week-label">Week —</span>
-    <button class="top-btn export"     onclick="exportData()">⬆ Export</button>
-    <button class="top-btn import-btn" onclick="document.getElementById('import-input').click()">⬇ Import</button>
+    <span class="date-label"  id="date-label"></span>
+    <button class="top-btn export"      onclick="exportData()">⬆ Export</button>
+    <button class="top-btn import-btn"  onclick="document.getElementById('import-input').click()">⬇ Import</button>
     <input  type="file" id="import-input" accept=".json" onchange="importData(event)">
     <span   class="status-msg" id="status-msg"></span>
   </div>
@@ -246,33 +268,51 @@
 
 <script>
 /* ────────────────────────────────────────────────
-   Week number from filename
+   Date helpers
 ──────────────────────────────────────────────── */
-(function setWeekLabel() {
-  const filename = location.pathname.split('/').pop().replace(/\.html?$/i, '');
-  const match    = filename.match(/(\d+)/);
-  const num      = match ? match[1] : '?';
-  document.getElementById('week-label').textContent = 'Week ' + num;
-  window.__WEEK_NUM__ = num;
-})();
+
+/* ISO week number — Mon=week start, matches most training logs */
+function isoWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;          // make Sun = 7
+  d.setUTCDate(d.getUTCDate() + 4 - day); // nearest Thu
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+/* JS getDay(): 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat */
+const TODAY      = new Date();
+const WEEK_NUM   = isoWeek(TODAY);
+const TODAY_JS   = TODAY.getDay(); // 0–6
+
+/* Map JS day index → DAYS array index (only training days listed) */
+const DAY_JS_TO_IDX = { 3: 0, 4: 1, 6: 2, 0: 3 }; // Wed Thu Sat Sun
+const TODAY_DAY_IDX = DAY_JS_TO_IDX[TODAY_JS]; // undefined if rest day
+
+/* Set labels */
+document.getElementById('week-label').textContent = 'Week ' + WEEK_NUM;
+document.getElementById('date-label').textContent  =
+  TODAY.toLocaleDateString(undefined, { weekday:'long', day:'numeric', month:'short' });
+
+window.__WEEK_NUM__ = WEEK_NUM;
 
 /* ────────────────────────────────────────────────
-   Programme
+   Programme definition
 ──────────────────────────────────────────────── */
 const DAYS = [
   {
     cls: 'wed', name: 'Wednesday', sub: 'Squat + bench',
     sections: [
       { label: 'Main lifts', exercises: [
-        { name: 'Primary squat',        badge: 'b-p',     badgeText: 'primary'   },
-        { name: 'Tempo + volume bench', badge: 'b-s',     badgeText: 'secondary' },
+        { name: 'Primary squat',        badge: 'b-p', badgeText: 'primary'   },
+        { name: 'Tempo + volume bench', badge: 'b-s', badgeText: 'secondary' },
       ]},
       { label: 'Accessories — lower 1', exercises: [
-        { name: 'RDLs'          },
-        { name: 'Leg press'     },
-        { name: 'Lying leg curl'},
-        { name: 'Leg extension' },
-        { name: 'Adductors'     },
+        { name: 'RDLs'           },
+        { name: 'Leg press'      },
+        { name: 'Lying leg curl' },
+        { name: 'Leg extension'  },
+        { name: 'Adductors'      },
       ]},
     ]
   },
@@ -329,11 +369,9 @@ const DAYS = [
 ];
 
 /* ────────────────────────────────────────────────
-   Storage helpers
+   Storage
 ──────────────────────────────────────────────── */
-function storageKey() {
-  return 'gymlog-week-' + (window.__WEEK_NUM__ || 'unknown');
-}
+function storageKey() { return 'gymlog-week-' + WEEK_NUM; }
 
 let data = {};
 let autoSaveTimer = null;
@@ -350,42 +388,31 @@ function loadFromStorage() {
 }
 
 /* ────────────────────────────────────────────────
-   Export — shares / downloads a JSON backup file
+   Export — iOS share sheet, no extra text file
 ──────────────────────────────────────────────── */
 async function exportData() {
-  // collect latest values first
   document.querySelectorAll('.set-input').forEach(inp => {
     data[inp.dataset.key] = inp.value;
   });
   persist();
 
-  const weekNum  = window.__WEEK_NUM__ || 'unknown';
-  const filename = `gymlog-week${weekNum}.json`;
-  const json     = JSON.stringify({ week: weekNum, saved: new Date().toISOString(), data }, null, 2);
+  const filename = `gymlog-week${WEEK_NUM}.json`;
+  const json     = JSON.stringify({ week: WEEK_NUM, saved: new Date().toISOString(), data }, null, 2);
   const blob     = new Blob([json], { type: 'application/json' });
   const file     = new File([blob], filename, { type: 'application/json' });
 
-  /* iOS Safari supports Web Share API with files */
+  /* Pass ONLY files — no title/text — prevents iOS creating a text snippet */
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({
-        files: [file],
-        title: `Gym log — Week ${weekNum}`,
-      });
-      /* The iOS share sheet lets you save to Files, send via AirDrop,
-         iMessage, email etc. — user picks what they want */
-      showStatus('✓ Share sheet opened', 'ok');
+      await navigator.share({ files: [file] });
+      showStatus('✓ Exported', 'ok');
       return;
     } catch(e) {
-      if (e.name !== 'AbortError') {
-        /* Share failed — fall through to download link */
-      } else {
-        return; /* User cancelled share sheet — that's fine */
-      }
+      if (e.name === 'AbortError') return; /* user cancelled, do nothing */
     }
   }
 
-  /* Desktop / non-share fallback — triggers a file download */
+  /* Desktop fallback */
   const url = URL.createObjectURL(blob);
   const a   = Object.assign(document.createElement('a'), { href: url, download: filename });
   a.click();
@@ -394,47 +421,44 @@ async function exportData() {
 }
 
 /* ────────────────────────────────────────────────
-   Import — load a previously exported JSON file
+   Import
 ──────────────────────────────────────────────── */
 function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const parsed = JSON.parse(e.target.result);
-      /* Support both { data: {...} } wrapper and raw key/value object */
+      const parsed   = JSON.parse(e.target.result);
       const incoming = parsed.data || parsed;
-      if (typeof incoming !== 'object') throw new Error('bad format');
+      if (typeof incoming !== 'object') throw new Error();
       data = incoming;
       persist();
       renderGrid();
       showStatus('✓ Imported', 'ok');
-    } catch(err) {
+    } catch(e) {
       showStatus('✗ Bad file', 'err');
     }
   };
   reader.readAsText(file);
-  /* Reset so the same file can be re-imported if needed */
   event.target.value = '';
 }
 
 /* ────────────────────────────────────────────────
-   Status message
+   Status flash
 ──────────────────────────────────────────────── */
 let statusTimer = null;
 function showStatus(msg, type) {
   const el = document.getElementById('status-msg');
-  el.textContent    = msg;
-  el.className      = 'status-msg ' + (type || '');
-  el.style.display  = 'inline';
+  el.textContent   = msg;
+  el.className     = 'status-msg ' + (type || '');
+  el.style.display = 'inline';
   clearTimeout(statusTimer);
   statusTimer = setTimeout(() => el.style.display = 'none', 2500);
 }
 
 /* ────────────────────────────────────────────────
-   Render helpers
+   Build helpers
 ──────────────────────────────────────────────── */
 function pfx(di, si, ei) { return `d${di}-s${si}-e${ei}-set`; }
 
@@ -442,9 +466,9 @@ function getSetCount(di, si, ei) {
   const p = pfx(di, si, ei);
   let count = 0;
   for (let i = 0; i < 20; i++) {
-    if (data[p+i+'-kg']   !== undefined ||
-        data[p+i+'-reps'] !== undefined ||
-        data[p+i+'-rpe']  !== undefined) count = i + 1;
+    if (data[`${p}${i}-kg`]   !== undefined ||
+        data[`${p}${i}-reps`] !== undefined ||
+        data[`${p}${i}-rpe`]  !== undefined) count = i + 1;
   }
   return Math.max(count, 1);
 }
@@ -456,12 +480,12 @@ function makeSetBlock(di, si, ei, setIdx) {
   const rpeK = `${p}${setIdx}-rpe`;
   return `<div class="set-block" id="setblock-${di}-${si}-${ei}-${setIdx}">
     <span class="set-num">${setIdx + 1}</span>
-    <input class="set-input inp-kg"   inputmode="decimal" placeholder="kg"   data-key="${kgK}"  value="${data[kgK]  || ''}" title="Weight (kg)">
+    <input class="set-input inp-kg"   inputmode="decimal" placeholder="kg"   data-key="${kgK}"  value="${data[kgK]  || ''}">
     <span class="set-sep">×</span>
-    <input class="set-input inp-reps" inputmode="numeric" placeholder="reps" data-key="${rpK}"  value="${data[rpK]  || ''}" title="Reps">
+    <input class="set-input inp-reps" inputmode="numeric" placeholder="reps" data-key="${rpK}"  value="${data[rpK]  || ''}">
     <span class="set-sep">@</span>
-    <input class="set-input inp-rpe"  inputmode="decimal" placeholder="RPE"  data-key="${rpeK}" value="${data[rpeK] || ''}" title="RPE (1–10)">
-    <button class="del-set-btn" title="Remove set" onclick="removeSet(this)">✕</button>
+    <input class="set-input inp-rpe"  inputmode="decimal" placeholder="RPE"  data-key="${rpeK}" value="${data[rpeK] || ''}">
+    <button class="del-set-btn" onclick="removeSet(this)">✕</button>
   </div>`;
 }
 
@@ -471,6 +495,9 @@ function makeSetBlock(di, si, ei, setIdx) {
 function renderGrid() {
   const grid = document.getElementById('days-grid');
   grid.innerHTML = DAYS.map((day, di) => {
+    const isToday   = di === TODAY_DAY_IDX;
+    const todayClass = isToday ? ' today' : '';
+
     const sectionsHtml = day.sections.map((sec, si) => {
       const exHtml = sec.exercises.map((ex, ei) => {
         const setCount = getSetCount(di, si, ei);
@@ -482,11 +509,11 @@ function renderGrid() {
           <div class="ex-name ${ex.badge ? '' : 'sec'}">${ex.name}${badge}</div>
           <div class="col-header">
             <span style="width:14px"></span>
-            <span class="lbl-kg">kg</span>
-            <span style="width:14px"></span>
-            <span class="lbl-reps">reps</span>
-            <span style="width:14px"></span>
-            <span class="lbl-rpe">RPE</span>
+            <span style="width:52px;text-align:center">kg</span>
+            <span style="width:10px"></span>
+            <span style="width:52px;text-align:center">reps</span>
+            <span style="width:10px"></span>
+            <span style="width:44px;text-align:center">RPE</span>
           </div>
           <div class="sets-row" id="sets-${di}-${si}-${ei}">
             ${setsHtml}
@@ -494,13 +521,18 @@ function renderGrid() {
           </div>
         </div>`;
       }).join('');
+
       return `<div class="section">
         <div class="section-label">${sec.label}</div>${exHtml}
       </div>`;
     }).join('<div class="divider"></div>');
 
-    return `<div class="day-col ${day.cls}">
-      <div class="day-header">${day.name}<div class="sub">${day.sub}</div></div>
+    return `<div class="day-col ${day.cls}${todayClass}">
+      <div class="day-header">
+        ${day.name}
+        <div class="sub">${day.sub}</div>
+        <span class="today-pip">Today</span>
+      </div>
       ${sectionsHtml}
     </div>`;
   }).join('');
