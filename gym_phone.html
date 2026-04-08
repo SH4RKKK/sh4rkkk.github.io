@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-base:       #0f0f0f;
+    --bg-card:       #1a1a1a;
+    --bg-input:      #252525;
+    --bg-hover:      #2e2e2e;
+    --border:        #333;
+    --border-light:  #2a2a2a;
+    --text-primary:  #e8e8e8;
+    --text-secondary:#999;
+    --text-tertiary: #555;
+    --accent-wed-bg: #0d2b24;
+    --accent-wed-tx: #4ecca3;
+    --accent-thu-bg: #1a1535;
+    --accent-thu-tx: #9d8fef;
+    --accent-sat-bg: #0d2b24;
+    --accent-sat-tx: #4ecca3;
+    --accent-sun-bg: #162508;
+    --accent-sun-tx: #8bc34a;
+    --badge-p-bg:    #2d2660;
+    --badge-p-tx:    #b8adff;
+    --badge-s-bg:    #2a2a2a;
+    --badge-s-tx:    #aaa;
+    --badge-st-bg:   #1e3a08;
+    --badge-st-tx:   #8bc34a;
+    --radius:        8px;
+    --radius-sm:     4px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+
+  .wrap { padding: 1rem; max-width: 1400px; margin: 0 auto; }
+
+  /* ── Top bar ── */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .week-label {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-right: 4px;
+  }
+
+  .top-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .top-btn:hover { background: var(--bg-hover); }
+  .top-btn.export { border-color: #4ecca3; color: #4ecca3; }
+  .top-btn.import-btn { border-color: #9d8fef; color: #9d8fef; }
+
+  .status-msg {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: none;
+  }
+  .status-msg.ok  { color: #4ecca3; }
+  .status-msg.err { color: #e05c5c; }
+
+  /* hidden file input for import */
+  #import-input { display: none; }
+
+  /* ── Grid ── */
+  .days-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  @media (max-width: 900px) { .days-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 500px) { .days-grid { grid-template-columns: 1fr; } }
+
+  /* ── Day card ── */
+  .day-col {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .day-header {
+    padding: 10px 12px 8px;
+    font-weight: 600;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .day-header .sub { font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.75; }
+
+  .wed .day-header { background: var(--accent-wed-bg); color: var(--accent-wed-tx); }
+  .thu .day-header { background: var(--accent-thu-bg); color: var(--accent-thu-tx); }
+  .sat .day-header { background: var(--accent-sat-bg); color: var(--accent-sat-tx); }
+  .sun .day-header { background: var(--accent-sun-bg); color: var(--accent-sun-tx); }
+
+  /* ── Section ── */
+  .section { padding: 8px 12px 6px; }
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+  }
+  .divider { height: 1px; background: var(--border-light); margin: 4px 12px; }
+
+  /* ── Exercise row ── */
+  .ex-row { margin-bottom: 10px; }
+  .ex-name {
+    font-size: 12px;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .ex-name.sec { font-weight: 400; color: var(--text-secondary); }
+
+  /* ── Column headers ── */
+  .col-header {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-bottom: 3px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .col-header .lbl-kg   { width: 42px; text-align: center; }
+  .col-header .lbl-reps { width: 42px; text-align: center; }
+  .col-header .lbl-rpe  { width: 36px; text-align: center; }
+
+  /* ── Sets ── */
+  .sets-row { display: flex; flex-direction: column; gap: 4px; }
+  .set-block { display: flex; gap: 4px; align-items: center; }
+  .set-num {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    width: 14px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ── Inputs ── */
+  .set-input {
+    font-size: 12px;
+    padding: 3px 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    text-align: center;
+    height: 26px;
+    transition: border-color 0.15s;
+    /* prevent iOS zoom on focus (font-size must be ≥16px or use this trick) */
+    font-size: 16px;
+  }
+  .set-input:focus { outline: none; border-color: #555; background: #2d2d2d; }
+  .inp-kg   { width: 48px; }
+  .inp-reps { width: 48px; }
+  .inp-rpe  { width: 40px; }
+
+  .set-sep { font-size: 10px; color: var(--text-tertiary); }
+
+  .del-set-btn {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0 2px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+    /* bigger tap target on mobile */
+    min-width: 28px;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .del-set-btn:hover { color: #e05c5c; }
+
+  .add-set-btn {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    cursor: pointer;
+    align-self: flex-start;
+    transition: background 0.15s, color 0.15s;
+    margin-top: 2px;
+    min-height: 32px;
+  }
+  .add-set-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .b-p      { background: var(--badge-p-bg);  color: var(--badge-p-tx); }
+  .b-s      { background: var(--badge-s-bg);  color: var(--badge-s-tx); }
+  .b-street { background: var(--badge-st-bg); color: var(--badge-st-tx); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top-bar">
+    <span class="week-label" id="week-label">Week —</span>
+    <button class="top-btn export"     onclick="exportData()">⬆ Export</button>
+    <button class="top-btn import-btn" onclick="document.getElementById('import-input').click()">⬇ Import</button>
+    <input  type="file" id="import-input" accept=".json" onchange="importData(event)">
+    <span   class="status-msg" id="status-msg"></span>
+  </div>
+  <div class="days-grid" id="days-grid"></div>
+</div>
+
+<script>
+/* ────────────────────────────────────────────────
+   Week number from filename
+──────────────────────────────────────────────── */
+(function setWeekLabel() {
+  const filename = location.pathname.split('/').pop().replace(/\.html?$/i, '');
+  const match    = filename.match(/(\d+)/);
+  const num      = match ? match[1] : '?';
+  document.getElementById('week-label').textContent = 'Week ' + num;
+  window.__WEEK_NUM__ = num;
+})();
+
+/* ────────────────────────────────────────────────
+   Programme
+──────────────────────────────────────────────── */
+const DAYS = [
+  {
+    cls: 'wed', name: 'Wednesday', sub: 'Squat + bench',
+    sections: [
+      { label: 'Main lifts', exercises: [
+        { name: 'Primary squat',        badge: 'b-p',     badgeText: 'primary'   },
+        { name: 'Tempo + volume bench', badge: 'b-s',     badgeText: 'secondary' },
+      ]},
+      { label: 'Accessories — lower 1', exercises: [
+        { name: 'RDLs'          },
+        { name: 'Leg press'     },
+        { name: 'Lying leg curl'},
+        { name: 'Leg extension' },
+        { name: 'Adductors'     },
+      ]},
+    ]
+  },
+  {
+    cls: 'thu', name: 'Thursday', sub: 'Bench + deadlift',
+    sections: [
+      { label: 'Main lifts', exercises: [
+        { name: 'Primary bench',   badge: 'b-p', badgeText: 'primary'   },
+        { name: 'Volume deadlift', badge: 'b-s', badgeText: 'secondary' },
+      ]},
+      { label: 'Accessories — upper 1', exercises: [
+        { name: 'BB rows'             },
+        { name: 'Machine press'       },
+        { name: 'Lat pullover'        },
+        { name: 'Cable fly'           },
+        { name: 'Tricep extension'    },
+        { name: 'Supinated pulldowns' },
+        { name: 'Facepulls'           },
+      ]},
+    ]
+  },
+  {
+    cls: 'sat', name: 'Saturday', sub: 'Deadlift + squat',
+    sections: [
+      { label: 'Main lifts', exercises: [
+        { name: 'Primary deadlift', badge: 'b-p', badgeText: 'primary'   },
+        { name: 'Tempo squat',      badge: 'b-s', badgeText: 'secondary' },
+      ]},
+      { label: 'Accessories — lower 2', exercises: [
+        { name: 'Seated leg curl'  },
+        { name: 'Leg extension'    },
+        { name: 'Adductor machine' },
+        { name: 'Back extensions'  },
+      ]},
+    ]
+  },
+  {
+    cls: 'sun', name: 'Sunday', sub: 'Streetlifting',
+    sections: [
+      { label: 'Main lifts', exercises: [
+        { name: 'Weighted dips',     badge: 'b-street', badgeText: 'street'    },
+        { name: 'Weighted pull-ups', badge: 'b-street', badgeText: 'street'    },
+        { name: 'Larsen bench',      badge: 'b-s',      badgeText: 'secondary' },
+      ]},
+      { label: 'Accessories — upper 2', exercises: [
+        { name: 'Wide grip pull-ups'  },
+        { name: 'Incline DB press'    },
+        { name: 'Lat pullovers'       },
+        { name: 'Tricep pushdown'     },
+        { name: 'Cable lateral raise' },
+      ]},
+    ]
+  },
+];
+
+/* ────────────────────────────────────────────────
+   Storage helpers
+──────────────────────────────────────────────── */
+function storageKey() {
+  return 'gymlog-week-' + (window.__WEEK_NUM__ || 'unknown');
+}
+
+let data = {};
+let autoSaveTimer = null;
+
+function persist() {
+  try { localStorage.setItem(storageKey(), JSON.stringify(data)); } catch(e) {}
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(storageKey());
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+/* ────────────────────────────────────────────────
+   Export — shares / downloads a JSON backup file
+──────────────────────────────────────────────── */
+async function exportData() {
+  // collect latest values first
+  document.querySelectorAll('.set-input').forEach(inp => {
+    data[inp.dataset.key] = inp.value;
+  });
+  persist();
+
+  const weekNum  = window.__WEEK_NUM__ || 'unknown';
+  const filename = `gymlog-week${weekNum}.json`;
+  const json     = JSON.stringify({ week: weekNum, saved: new Date().toISOString(), data }, null, 2);
+  const blob     = new Blob([json], { type: 'application/json' });
+  const file     = new File([blob], filename, { type: 'application/json' });
+
+  /* iOS Safari supports Web Share API with files */
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: `Gym log — Week ${weekNum}`,
+      });
+      /* The iOS share sheet lets you save to Files, send via AirDrop,
+         iMessage, email etc. — user picks what they want */
+      showStatus('✓ Share sheet opened', 'ok');
+      return;
+    } catch(e) {
+      if (e.name !== 'AbortError') {
+        /* Share failed — fall through to download link */
+      } else {
+        return; /* User cancelled share sheet — that's fine */
+      }
+    }
+  }
+
+  /* Desktop / non-share fallback — triggers a file download */
+  const url = URL.createObjectURL(blob);
+  const a   = Object.assign(document.createElement('a'), { href: url, download: filename });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  showStatus('✓ Downloaded', 'ok');
+}
+
+/* ────────────────────────────────────────────────
+   Import — load a previously exported JSON file
+──────────────────────────────────────────────── */
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      /* Support both { data: {...} } wrapper and raw key/value object */
+      const incoming = parsed.data || parsed;
+      if (typeof incoming !== 'object') throw new Error('bad format');
+      data = incoming;
+      persist();
+      renderGrid();
+      showStatus('✓ Imported', 'ok');
+    } catch(err) {
+      showStatus('✗ Bad file', 'err');
+    }
+  };
+  reader.readAsText(file);
+  /* Reset so the same file can be re-imported if needed */
+  event.target.value = '';
+}
+
+/* ────────────────────────────────────────────────
+   Status message
+──────────────────────────────────────────────── */
+let statusTimer = null;
+function showStatus(msg, type) {
+  const el = document.getElementById('status-msg');
+  el.textContent    = msg;
+  el.className      = 'status-msg ' + (type || '');
+  el.style.display  = 'inline';
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => el.style.display = 'none', 2500);
+}
+
+/* ────────────────────────────────────────────────
+   Render helpers
+──────────────────────────────────────────────── */
+function pfx(di, si, ei) { return `d${di}-s${si}-e${ei}-set`; }
+
+function getSetCount(di, si, ei) {
+  const p = pfx(di, si, ei);
+  let count = 0;
+  for (let i = 0; i < 20; i++) {
+    if (data[p+i+'-kg']   !== undefined ||
+        data[p+i+'-reps'] !== undefined ||
+        data[p+i+'-rpe']  !== undefined) count = i + 1;
+  }
+  return Math.max(count, 1);
+}
+
+function makeSetBlock(di, si, ei, setIdx) {
+  const p    = pfx(di, si, ei);
+  const kgK  = `${p}${setIdx}-kg`;
+  const rpK  = `${p}${setIdx}-reps`;
+  const rpeK = `${p}${setIdx}-rpe`;
+  return `<div class="set-block" id="setblock-${di}-${si}-${ei}-${setIdx}">
+    <span class="set-num">${setIdx + 1}</span>
+    <input class="set-input inp-kg"   inputmode="decimal" placeholder="kg"   data-key="${kgK}"  value="${data[kgK]  || ''}" title="Weight (kg)">
+    <span class="set-sep">×</span>
+    <input class="set-input inp-reps" inputmode="numeric" placeholder="reps" data-key="${rpK}"  value="${data[rpK]  || ''}" title="Reps">
+    <span class="set-sep">@</span>
+    <input class="set-input inp-rpe"  inputmode="decimal" placeholder="RPE"  data-key="${rpeK}" value="${data[rpeK] || ''}" title="RPE (1–10)">
+    <button class="del-set-btn" title="Remove set" onclick="removeSet(this)">✕</button>
+  </div>`;
+}
+
+/* ────────────────────────────────────────────────
+   Render
+──────────────────────────────────────────────── */
+function renderGrid() {
+  const grid = document.getElementById('days-grid');
+  grid.innerHTML = DAYS.map((day, di) => {
+    const sectionsHtml = day.sections.map((sec, si) => {
+      const exHtml = sec.exercises.map((ex, ei) => {
+        const setCount = getSetCount(di, si, ei);
+        let setsHtml = '';
+        for (let s = 0; s < setCount; s++) setsHtml += makeSetBlock(di, si, ei, s);
+        const badge = ex.badge
+          ? `<span class="badge ${ex.badge}">${ex.badgeText}</span>` : '';
+        return `<div class="ex-row">
+          <div class="ex-name ${ex.badge ? '' : 'sec'}">${ex.name}${badge}</div>
+          <div class="col-header">
+            <span style="width:14px"></span>
+            <span class="lbl-kg">kg</span>
+            <span style="width:14px"></span>
+            <span class="lbl-reps">reps</span>
+            <span style="width:14px"></span>
+            <span class="lbl-rpe">RPE</span>
+          </div>
+          <div class="sets-row" id="sets-${di}-${si}-${ei}">
+            ${setsHtml}
+            <button class="add-set-btn" onclick="addSet(${di},${si},${ei})">+ set</button>
+          </div>
+        </div>`;
+      }).join('');
+      return `<div class="section">
+        <div class="section-label">${sec.label}</div>${exHtml}
+      </div>`;
+    }).join('<div class="divider"></div>');
+
+    return `<div class="day-col ${day.cls}">
+      <div class="day-header">${day.name}<div class="sub">${day.sub}</div></div>
+      ${sectionsHtml}
+    </div>`;
+  }).join('');
+
+  attachListeners(grid);
+}
+
+function attachListeners(root) {
+  root.querySelectorAll('.set-input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      data[inp.dataset.key] = inp.value;
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        persist();
+        showStatus('✓ Auto-saved', 'ok');
+      }, 1000);
+    });
+  });
+}
+
+/* ────────────────────────────────────────────────
+   Add / Remove set
+──────────────────────────────────────────────── */
+function addSet(di, si, ei) {
+  const container = document.getElementById(`sets-${di}-${si}-${ei}`);
+  const btn       = container.querySelector('.add-set-btn');
+  const setIdx    = container.querySelectorAll('.set-block').length;
+  const tmp       = document.createElement('div');
+  tmp.innerHTML   = makeSetBlock(di, si, ei, setIdx);
+  const block     = tmp.firstElementChild;
+  container.insertBefore(block, btn);
+  attachListeners(block);
+  block.querySelector('.set-input').focus();
+}
+
+function removeSet(btn) {
+  const block = btn.closest('.set-block');
+  block.querySelectorAll('.set-input').forEach(inp => delete data[inp.dataset.key]);
+  block.remove();
+  btn.closest('.sets-row').querySelectorAll('.set-block').forEach((b, i) => {
+    b.querySelector('.set-num').textContent = i + 1;
+  });
+  persist();
+}
+
+/* ────────────────────────────────────────────────
+   Boot
+──────────────────────────────────────────────── */
+data = loadFromStorage();
+renderGrid();
+</script>
+</body>
+</html>
