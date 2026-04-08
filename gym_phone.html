@@ -44,7 +44,6 @@
 
   .wrap { padding: 1rem; max-width: 1400px; margin: 0 auto; }
 
-  /* ── Top bar ── */
   .top-bar {
     display: flex;
     align-items: center;
@@ -53,17 +52,24 @@
     flex-wrap: wrap;
   }
 
+  .week-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .week-label {
     font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
-    margin-right: 4px;
+    min-width: 80px;
+    text-align: center;
   }
 
   .date-label {
     font-size: 12px;
     color: var(--text-tertiary);
-    margin-right: 8px;
+    margin-right: 4px;
   }
 
   .top-btn {
@@ -77,8 +83,9 @@
     transition: background 0.15s;
     white-space: nowrap;
   }
-  .top-btn:hover  { background: var(--bg-hover); }
-  .top-btn.export { border-color: #4ecca3; color: #4ecca3; }
+  .top-btn:hover { background: var(--bg-hover); }
+  .top-btn:disabled { opacity: 0.3; cursor: default; }
+  .top-btn.export     { border-color: #4ecca3; color: #4ecca3; }
   .top-btn.import-btn { border-color: #9d8fef; color: #9d8fef; }
 
   .status-msg { font-size: 12px; color: var(--text-secondary); display: none; }
@@ -102,10 +109,8 @@
     border: 1px solid var(--border-light);
     border-radius: var(--radius);
     overflow: hidden;
-    transition: box-shadow 0.2s;
   }
 
-  /* Today highlight — glowing border */
   .day-col.today {
     border-color: #ffffff22;
     box-shadow: 0 0 0 2px #ffffff18, 0 4px 24px #0008;
@@ -120,7 +125,6 @@
   }
   .day-header .sub { font-size: 11px; font-weight: 400; margin-top: 2px; opacity: 0.75; }
 
-  /* Today badge inside header */
   .today-pip {
     display: none;
     position: absolute;
@@ -168,7 +172,6 @@
   }
   .ex-name.sec { font-weight: 400; color: var(--text-secondary); }
 
-  /* ── Column headers ── */
   .col-header {
     font-size: 10px;
     color: var(--text-tertiary);
@@ -189,9 +192,8 @@
     flex-shrink: 0;
   }
 
-  /* ── Inputs ── */
   .set-input {
-    font-size: 16px; /* prevents iOS zoom */
+    font-size: 16px;
     padding: 3px 4px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -240,7 +242,6 @@
   }
   .add-set-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-  /* ── Badges ── */
   .badge {
     display: inline-block;
     font-size: 10px;
@@ -256,10 +257,10 @@
 <body>
 <div class="wrap">
   <div class="top-bar">
-    <div style="display:flex;align-items:center;gap:6px">
-      <button class="top-btn" id="prev-week" onclick="changeWeek(-1)">←</button>
+    <div class="week-nav">
+      <button class="top-btn" onclick="changeWeek(-1)">←</button>
       <span class="week-label" id="week-label">Week —</span>
-      <button class="top-btn" id="next-week" onclick="changeWeek(1)">→</button>
+      <button class="top-btn" id="btn-next" onclick="changeWeek(1)">→</button>
     </div>
     <span class="date-label" id="date-label"></span>
     <button class="top-btn export"     onclick="exportData()">⬆ Export</button>
@@ -267,12 +268,11 @@
     <input  type="file" id="import-input" accept=".json" onchange="importData(event)">
     <span   class="status-msg" id="status-msg"></span>
   </div>
+  <div class="days-grid" id="days-grid"></div>
 </div>
 
 <script>
-/* ────────────────────────────────────────────────
-   Date helpers
-──────────────────────────────────────────────── */
+/* ── Date helpers ── */
 function isoWeek(date) {
   const d   = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const day = d.getUTCDay() || 7;
@@ -281,7 +281,6 @@ function isoWeek(date) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-/* Get the Monday of a given ISO week number in the current year */
 function mondayOfIsoWeek(week, year) {
   const simple = new Date(year, 0, 1 + (week - 1) * 7);
   const dow    = simple.getDay();
@@ -294,32 +293,27 @@ function mondayOfIsoWeek(week, year) {
 const TODAY        = new Date();
 const CURRENT_WEEK = isoWeek(TODAY);
 const TODAY_JS     = TODAY.getDay();
-
 const DAY_JS_TO_IDX = { 3: 0, 4: 1, 6: 2, 0: 3 };
 const TODAY_DAY_IDX = DAY_JS_TO_IDX[TODAY_JS];
 
-/* Currently viewed week — starts at current week */
 let viewWeek = CURRENT_WEEK;
 
-function updateWeekLabel() {
-  const isCurrentWeek = viewWeek === CURRENT_WEEK;
+function updateTopBar() {
   document.getElementById('week-label').textContent = 'Week ' + viewWeek;
 
-  /* Show the Monday–Sunday date range of the viewed week */
   const mon = mondayOfIsoWeek(viewWeek, TODAY.getFullYear());
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
   const fmt = d => d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const isCurrent = viewWeek === CURRENT_WEEK;
   document.getElementById('date-label').textContent =
-    fmt(mon) + ' – ' + fmt(sun) + (isCurrentWeek ? '  (this week)' : '');
+    fmt(mon) + ' – ' + fmt(sun) + (isCurrent ? '  (this week)' : '');
 
-  /* Disable → button if already on current week */
-  document.getElementById('next-week').disabled = isCurrentWeek;
-  document.getElementById('next-week').style.opacity = isCurrentWeek ? '0.3' : '1';
+  const btnNext = document.getElementById('btn-next');
+  btnNext.disabled = isCurrent;
 }
 
-/* ────────────────────────────────────────────────
-   Programme
-──────────────────────────────────────────────── */
+/* ── Programme ── */
 const DAYS = [
   {
     cls: 'wed', name: 'Wednesday', sub: 'Squat + bench',
@@ -389,16 +383,14 @@ const DAYS = [
   },
 ];
 
-/* ────────────────────────────────────────────────
-   Storage — keyed per week number
-──────────────────────────────────────────────── */
-function storageKey(week) { return 'gymlog-week-' + (week || viewWeek); }
+/* ── Storage ── */
+function storageKey(week) { return 'gymlog-week-' + week; }
 
 let data = {};
 let autoSaveTimer = null;
 
 function persist() {
-  try { localStorage.setItem(storageKey(), JSON.stringify(data)); } catch(e) {}
+  try { localStorage.setItem(storageKey(viewWeek), JSON.stringify(data)); } catch(e) {}
 }
 
 function loadFromStorage(week) {
@@ -408,21 +400,17 @@ function loadFromStorage(week) {
   } catch(e) { return {}; }
 }
 
-/* ────────────────────────────────────────────────
-   Week navigation
-──────────────────────────────────────────────── */
+/* ── Week navigation ── */
 function changeWeek(delta) {
   const next = viewWeek + delta;
   if (next < 1 || next > CURRENT_WEEK) return;
   viewWeek = next;
   data     = loadFromStorage(viewWeek);
-  updateWeekLabel();
+  updateTopBar();
   renderGrid();
 }
 
-/* ────────────────────────────────────────────────
-   Export
-──────────────────────────────────────────────── */
+/* ── Export ── */
 async function exportData() {
   document.querySelectorAll('.set-input').forEach(inp => {
     data[inp.dataset.key] = inp.value;
@@ -451,9 +439,7 @@ async function exportData() {
   showStatus('✓ Downloaded', 'ok');
 }
 
-/* ────────────────────────────────────────────────
-   Import
-──────────────────────────────────────────────── */
+/* ── Import ── */
 function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -475,9 +461,7 @@ function importData(event) {
   event.target.value = '';
 }
 
-/* ────────────────────────────────────────────────
-   Status flash
-──────────────────────────────────────────────── */
+/* ── Status ── */
 let statusTimer = null;
 function showStatus(msg, type) {
   const el = document.getElementById('status-msg');
@@ -488,9 +472,7 @@ function showStatus(msg, type) {
   statusTimer = setTimeout(() => el.style.display = 'none', 2500);
 }
 
-/* ────────────────────────────────────────────────
-   Build helpers
-──────────────────────────────────────────────── */
+/* ── Build helpers ── */
 function pfx(di, si, ei) { return `d${di}-s${si}-e${ei}-set`; }
 
 function getSetCount(di, si, ei) {
@@ -520,15 +502,12 @@ function makeSetBlock(di, si, ei, setIdx) {
   </div>`;
 }
 
-/* ────────────────────────────────────────────────
-   Render
-──────────────────────────────────────────────── */
+/* ── Render ── */
 function renderGrid() {
   const isCurrentWeek = viewWeek === CURRENT_WEEK;
   const grid = document.getElementById('days-grid');
 
   grid.innerHTML = DAYS.map((day, di) => {
-    /* Only highlight today if viewing current week */
     const isToday    = isCurrentWeek && di === TODAY_DAY_IDX;
     const todayClass = isToday ? ' today' : '';
 
@@ -586,9 +565,7 @@ function attachListeners(root) {
   });
 }
 
-/* ────────────────────────────────────────────────
-   Add / Remove set
-──────────────────────────────────────────────── */
+/* ── Add / Remove set ── */
 function addSet(di, si, ei) {
   const container = document.getElementById(`sets-${di}-${si}-${ei}`);
   const btn       = container.querySelector('.add-set-btn');
@@ -611,11 +588,9 @@ function removeSet(btn) {
   persist();
 }
 
-/* ────────────────────────────────────────────────
-   Boot
-──────────────────────────────────────────────── */
+/* ── Boot ── */
 data = loadFromStorage(viewWeek);
-updateWeekLabel();
+updateTopBar();
 renderGrid();
 </script>
 </body>
